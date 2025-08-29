@@ -40,7 +40,7 @@ A simple Python tool that moves your Large Language Model files to an external U
 ### 1. Download & Install
 ```bash
 # Clone this repository
-git clone <your-repo-url>
+git clone git@github.com:Nembus/LLMover.git
 cd LLMover
 
 # Install dependencies
