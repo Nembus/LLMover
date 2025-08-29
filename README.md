@@ -79,13 +79,11 @@ That's it! The tool will guide you through the process.
 2. **Model List** - All your models with sizes and types
 ```
 Models Available to Move
-┏━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┓
-┃ ID ┃ Model Name         ┃     Size ┃ Type     ┃
-┡━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━┩
-│ 1  │ lmstudio-community │ 146.5 GB │ GGUF     │
-│ 2  │ OpenAi             │  59.0 GB │ GGUF     │
-│ 3  │ unsloth            │  32.1 GB │ GGUF     │
-└────┴────────────────────┴──────────┴──────────┘
+| ID | Model Name                                                     | Type         | Size   | Location |
+|----|----------------------------------------------------------------|--------------|--------|----------|
+| 1  | lmstudio-community/DeepSeek R1 0528 Qwen3 8B MLX 8bit         | 📁 other_dir | 8.1 GB | 💾 Local  |
+| 2  | lmstudio-community/Qwen3 Coder 30B A3B Instruct MLX 8bit      | 📁 other_dir | 30.2 GB | 💾 Local |
+| 3  | lmstudio-community/gemma 3 27B it qat GGUF                    | 🗂️ gguf_dir   | 15.3 GB |💾 Local |
 ```
 
 3. **Easy Selection** - Choose models by number
@@ -221,7 +219,7 @@ uv run llm-mover -l /custom/path -u /Volumes/MyUSB/Models -v
 
 ## 🔒 Safety & Recovery
 
-**This tool is designed to be safe:**
+**This tool is designed to be safe, but please backup your models before using it, as it has not been tested extensively!:**
 
 ✅ **Atomic Operations** - Moves either complete 100% or rollback completely  
 ✅ **Space Validation** - Checks available space before starting  
