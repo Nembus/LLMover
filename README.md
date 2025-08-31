@@ -20,11 +20,12 @@ A simple Python tool that moves your Large Language Model files to an external U
 
 - 🔍 **Smart Detection** - Automatically finds and categorizes your models
 - 📊 **Storage Overview** - See exactly what's using your disk space
-- 🎛️ **Interactive Selection** - Choose exactly which models to move
+- 🎛️ **Interactive Selection** - Choose exactly which models to move, bring back, or remove
 - ⚡ **Safe & Fast** - Atomic operations with automatic rollback on failure
 - 🔗 **Seamless Integration** - LM Studio keeps working normally
 - ⏱️ **Time Estimates** - Know how long transfers will take
 - 🛡️ **Health Monitoring** - Validates everything is working correctly
+- 🗑️ **Safe Removal** - Permanently delete models with multiple confirmation layers
 
 ## 📋 Prerequisites
 
@@ -150,6 +151,40 @@ uv run llm-mover -bb
 - USB transfer speeds are too slow for regular use
 - Preparing to remove or reformat the USB drive
 
+### Remove Models Permanently
+```bash
+# Remove/delete models permanently to free up space
+uv run llm-mover --remove
+# Or using short flag
+uv run llm-mover -rm
+
+# Skip confirmation prompts (use with caution!)
+uv run llm-mover --remove --force
+uv run llm-mover -rm -f
+```
+
+**What happens:**
+- Shows all models (both local and USB-stored)
+- Lets you select which models to permanently delete
+- Shows detailed breakdown by storage location
+- Requires confirmation before deletion (unless --force is used)
+- Removes models from both local storage and USB as needed
+- Shows total space freed across all storage locations
+
+**Safety features:**
+- ⚠️ **Double confirmation** for large deletions (>10GB or multiple models)
+- 🛡️ **No accidental deletion** - requires explicit confirmation text
+- 📊 **Clear summary** showing exactly what will be deleted
+- 🔍 **Smart handling** of different model types (local, symlinked, internal symlinks)
+
+**When to use:**
+- Clean up models you no longer need
+- Free up space on both local storage and USB
+- Remove outdated or duplicate models
+- Clean slate before reorganizing your model collection
+
+**⚠️ Important:** This action cannot be undone. Make sure you have backups if needed!
+
 ### Health Checking & Repair
 ```bash
 # Check if all symlinks are working properly
@@ -194,6 +229,8 @@ The tool automatically categorizes your models:
 | `--check-health` | `-ch` | Check health of symlinks and models |
 | `--repair` | `-r` | Automatically repair broken symlinks |
 | `--bring-back` | `-bb` | Move models from USB back to local storage |
+| `--remove` | `-rm` | Remove/delete models permanently |
+| `--force` | `-f` | Skip confirmation prompts (use with caution) |
 | `--verbose` | `-v` | Show detailed information during operations |
 
 ### Usage Examples
@@ -212,6 +249,14 @@ uv run llm-mover --repair
 # Bring models back from USB to local storage
 uv run llm-mover --bring-back
 uv run llm-mover -bb
+
+# Remove models permanently (with confirmation)
+uv run llm-mover --remove
+uv run llm-mover -rm
+
+# Remove models without confirmation prompts (dangerous!)
+uv run llm-mover --remove --force
+uv run llm-mover -rm -f
 
 # Custom paths with verbose output
 uv run llm-mover -l /custom/path -u /Volumes/MyUSB/Models -v
