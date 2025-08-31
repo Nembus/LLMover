@@ -23,6 +23,7 @@
   - Handles symlink creation and health monitoring
   - Provides smart move recommendations based on model priorities
   - Health check and repair functionality for broken symlinks
+  - Model removal functionality with intelligent cleanup of symlinks and USB targets
 
 #### 2. CLI Interface (`main.py`)
 - Rich-powered interactive interface with tables and progress bars
@@ -31,6 +32,8 @@
 - Comprehensive error handling with user-friendly messages
 - Health check (`--check-health`) and repair (`--repair`) commands
 - External model viewing (`--show-external`) functionality
+- Model restoration (`--bring-back`) from USB to local storage
+- Model removal (`--remove`) with multiple safety confirmations and force override (`--force`)
 
 #### 3. Safety & Utilities (`utils.py`)
 - **safe_move_with_verification()**: Atomic file operations with rollback
@@ -144,7 +147,26 @@ uv run llm-mover --repair       # Repair broken symlinks
 uv run llm-mover --show-external # View models on USB (-se)
 ```
 
-#### 5. Custom Paths
+#### 5. Model Restoration
+```bash
+uv run llm-mover --bring-back   # or -bb (short flag)
+```
+- Move models from USB back to local storage
+- Useful when USB transfer speeds are too slow for regular use
+- Reverses the symlink process safely
+
+#### 6. Model Removal (New)
+```bash
+uv run llm-mover --remove       # or -rm (short flag)
+uv run llm-mover --remove --force # Skip confirmation prompts
+```
+- Permanently delete models from storage
+- Works with both local and USB-stored models
+- Multiple safety confirmations prevent accidental deletion
+- Shows detailed breakdown by storage location
+- Requires explicit confirmation text for large operations
+
+#### 7. Custom Paths
 ```bash
 uv run llm-mover -l /custom/local/path -u /custom/usb/path
 ```
@@ -264,9 +286,29 @@ ls -la ~/.lmstudio/models/          # Manual directory inspection
 df -h /Volumes/USBSTICK/            # Check USB space manually
 ```
 
-### Recent Updates (Updated: August 28, 2025)
+### Recent Updates (Updated: August 31, 2025)
 
-#### Configuration Management Overhaul (Latest)
+#### Model Removal Feature (Latest)
+- **Major Feature**: Added permanent model deletion capability with comprehensive safety measures
+- **CLI Integration**: New `--remove` (`-rm`) flag with interactive model selection
+- **Safety Confirmations**: Multiple confirmation layers prevent accidental deletion
+  - Basic confirmation for all deletions
+  - Double confirmation for large operations (>10GB or multiple models)
+  - Explicit text confirmation required for high-risk deletions
+- **Force Override**: `--force` (`-f`) flag to skip confirmation prompts for automated scripts
+- **Smart Detection**: Handles all model types (local, symlinked, internal symlinks) intelligently
+- **Complete Cleanup**: Removes both local symlinks and USB targets in coordinated manner
+- **Storage Analysis**: Shows detailed breakdown by storage location before deletion
+- **Space Reporting**: Calculates and displays total space freed across all storage locations
+
+#### README Documentation Enhancement (Latest)
+- **Complete Feature Coverage**: Updated README with model removal workflow documentation
+- **Safety Documentation**: Comprehensive safety feature documentation with warnings
+- **CLI Reference**: Updated command-line flag reference table with removal options
+- **Use Case Guidance**: Clear guidance on when to use removal vs. other operations
+- **Backup Warnings**: Prominent warnings about permanent deletion and backup recommendations
+
+#### Configuration Management Overhaul (Previous)
 - **Major Feature**: Complete rewrite of configuration system using `ConfigManager` class
 - **Auto-Creation**: Automatic `config.yml` generation with sensible defaults on first run
 - **YAML Support**: Added PyYAML dependency for human-readable configuration files
@@ -276,14 +318,14 @@ df -h /Volumes/USBSTICK/            # Check USB space manually
 - **Environment Override**: Full support for `LLM_LOCAL_PATH` and `LLM_USB_PATH` variables
 - **Developer Experience**: No manual configuration needed for standard macOS setups
 
-#### Enhanced CLI Documentation (Latest)
+#### Enhanced CLI Documentation (Previous)
 - **Complete CLI Reference**: Added comprehensive documentation for all command-line flags
 - **Short Flag Support**: Added short flags (`-ls`, `-se`, `-l`, `-u`) for frequently used options  
 - **Health Management**: New `--check-health` and `--repair` commands for symlink maintenance
 - **External Model Viewing**: `--show-external` flag to view models currently stored on USB
 - **Configuration Priority**: Clear documentation of flag > environment > config.yml precedence
 
-#### Git Integration & Development Automation (Latest)
+#### Git Integration & Development Automation (Previous)
 - **Claude Code Integration**: Added `.claude/` folder with settings and command automation
 - **Automatic Documentation**: Created custom `update-claudemd` command for maintaining documentation
 - **Permission Management**: Configured permissions for model directory access and uv command execution
