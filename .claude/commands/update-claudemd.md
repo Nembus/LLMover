@@ -20,31 +20,31 @@ description: Automatically update CLAUDE.md file based on recent code changes
 !`git log --since="1 week ago" --pretty=format:"%h - %an, %ar : %s" --stat`
 
 ### Recent Diff Analysis
-!`git diff HEAD~3 --name-only | head -20`
+!`git diff --name-only | head -20`
 
 ### Detailed Diff of Key Changes
-!`git diff HEAD~3 -- "*.js" "*.ts" "*.jsx" "*.tsx" "*.py" "*.md" "*.json" | head -200`
+!`git diff -- "*.js" "*.ts" "*.jsx" "*.tsx" "*.py" "*.md" "*.json" | head -200`
 
 ### New Files Added
-!`git diff --name-status HEAD~5`
+!`git diff --name-status --cached`
 
-### Deleted Files
-!`git diff --name-status HEAD~5 --diff-filter=D`
+### Deleted Files  
+!`git diff --name-status --cached --diff-filter=D`
 
 ### Modified Core Files
-!`git diff --name-status HEAD~5 --name-only | head -10`
+!`git diff --name-status | head -10`
 
 ## Project Structure Changes
 !`find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*" | head -10`
 
 ## Configuration Changes
-!`git diff HEAD~5 -- pyproject.toml uv.lock setup.py requirements.txt .env* docker* | head -100`
+!`git diff -- pyproject.toml uv.lock setup.py requirements.txt .env* docker* | head -100`
 
 ## Core Code Changes  
-!`git diff HEAD~5 -- "src/**" "**/*.py" | head -150`
+!`git diff -- "src/**" "**/*.py" | head -150`
 
 ## Config/Model Changes
-!`git diff HEAD~5 -- "**/*config*" "**/*model*" "**/*setting*" | head -100`
+!`git diff -- "**/*config*" "**/*model*" "**/*setting*" | head -100`
 
 ## Your Task
 
