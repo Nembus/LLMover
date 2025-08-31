@@ -242,6 +242,68 @@ def select_models_to_bring_back(models: List[ModelInfo]) -> List[ModelInfo]:
             return []
 
 
+def select_models_to_remove(models: List[ModelInfo]) -> List[ModelInfo]:
+    """Allow user to select which models to remove/delete permanently."""
+    if not models:
+        return []
+    
+    console.print("\n🎯 Select models to remove permanently:")
+    console.print("Enter model IDs separated by commas, ranges (e.g., 1-3), or 'all'")
+    console.print("Example: 1,3,5-7 or all")
+    console.print("[red]⚠️  WARNING: This will permanently delete the selected models![/red]")
+    
+    display_model_table(models, "Models Available for Removal")
+    
+    while True:
+        try:
+            selection = console.input("\n[bold red]Select models to remove[/bold red]: ").strip()
+            
+            if not selection:
+                return []
+            
+            if selection.lower() == 'all':
+                return models
+            
+            selected_indices = set()
+            
+            for part in selection.split(','):
+                part = part.strip()
+                
+                if '-' in part and part.count('-') == 1:
+                    # Range selection
+                    start, end = map(int, part.split('-'))
+                    selected_indices.update(range(start, end + 1))
+                else:
+                    # Single selection
+                    selected_indices.add(int(part))
+            
+            # Validate indices
+            valid_indices = {i for i in selected_indices if 1 <= i <= len(models)}
+            invalid_indices = selected_indices - valid_indices
+            
+            if invalid_indices:
+                console.print(f"[red]Invalid selection(s): {sorted(invalid_indices)}[/red]")
+                continue
+            
+            if not valid_indices:
+                return []
+            
+            selected_models = [models[i - 1] for i in sorted(valid_indices)]
+            
+            # Show selection summary with warning
+            total_size = sum(model.size_bytes for model in selected_models)
+            console.print(f"\n[red]⚠️  Selected {len(selected_models)} model(s) for PERMANENT REMOVAL[/red]")
+            console.print(f"[red]Total size to be freed: {format_size(total_size)}[/red]")
+            
+            return selected_models
+            
+        except (ValueError, IndexError):
+            console.print("[red]Invalid input. Please try again.[/red]")
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Selection cancelled.[/yellow]")
+            return []
+
+
 @click.command()
 @click.option(
     '--local-path', '-l',
@@ -258,8 +320,10 @@ def select_models_to_bring_back(models: List[ModelInfo]) -> List[ModelInfo]:
 @click.option('--check-health', '-ch', is_flag=True, help='Check health of symlinks and models')
 @click.option('--repair', '-r', is_flag=True, help='Repair broken symlinks')
 @click.option('--bring-back', '-bb', is_flag=True, help='Move models from USB back to local storage')
+@click.option('--remove', '-rm', is_flag=True, help='Remove/delete models permanently')
+@click.option('--force', '-f', is_flag=True, help='Skip confirmation prompts (use with caution)')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, check_health: bool, repair: bool, bring_back: bool, verbose: bool):
+def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, check_health: bool, repair: bool, bring_back: bool, remove: bool, force: bool, verbose: bool):
     """LLM Model Mover - Move models from local storage to USB stick with symlink creation."""
     
     # Initialize configuration manager
@@ -333,6 +397,98 @@ def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, c
                 manager.refresh()
             else:
                 console.print("[green]✅ No repairs needed![/green]")
+            return
+
+        # Handle remove flag
+        if remove:
+            if verbose:
+                console.print(f"\n[dim]Local path: {manager.local_path}[/dim]")
+                if manager.usb_available:
+                    console.print(f"[dim]USB path: {manager.usb_path}[/dim]")
+            
+            # Get all models (local and USB)
+            all_models = list(manager._models.values())
+            
+            if not all_models:
+                console.print("\n[yellow]📭 No models found to remove.[/yellow]")
+                return
+            
+            console.print("\n💥 Models Available for Removal:")
+            display_model_table(all_models, "Models Available for Removal")
+            
+            # Let user select models to remove
+            selected_models = select_models_to_remove(all_models)
+            
+            if not selected_models:
+                console.print("[yellow]No models selected. Exiting.[/yellow]")
+                return
+            
+            # Show detailed removal summary
+            total_size = sum(model.size_bytes for model in selected_models)
+            local_models = [m for m in selected_models if not m.is_symlink and not m.has_internal_symlinks]
+            usb_models = [m for m in selected_models if m.is_symlink or m.has_internal_symlinks]
+            
+            console.print(f"\n💥 About to PERMANENTLY REMOVE {len(selected_models)} model(s):")
+            
+            if local_models:
+                console.print(f"\n💾 Local Models ({len(local_models)}):")
+                for model in local_models:
+                    console.print(f"  • {model.display_name} ({format_size(model.size_bytes)})")
+            
+            if usb_models:
+                console.print(f"\n💽 USB Models ({len(usb_models)}):")
+                for model in usb_models:
+                    console.print(f"  • {model.display_name} ({format_size(model.size_bytes)})")
+            
+            console.print(f"\n📊 Total space to be freed: {format_size(total_size)}")
+            console.print("[red]⚠️  This action cannot be undone![/red]")
+            
+            # Final confirmation (unless --force flag is used)
+            if not force:
+                if not Confirm.ask("\n[bold red]Are you absolutely sure you want to permanently delete these models?[/bold red]", default=False):
+                    console.print("[yellow]Operation cancelled.[/yellow]")
+                    return
+                
+                # Double confirmation for safety
+                if len(selected_models) > 1 or total_size > 10 * 1024**3:  # More than 10GB or multiple models
+                    console.print(f"\n[red]You are about to delete {len(selected_models)} models totaling {format_size(total_size)}.[/red]")
+                    confirm_text = f"DELETE {len(selected_models)} MODELS"
+                    user_confirm = console.input(f"Type '{confirm_text}' to confirm: ").strip()
+                    if user_confirm != confirm_text:
+                        console.print("[yellow]Confirmation text didn't match. Operation cancelled.[/yellow]")
+                        return
+            
+            # Remove models
+            console.print("\n💥 Starting model removal...")
+            
+            success_count = 0
+            for model in track(selected_models, description="Removing models..."):
+                try:
+                    console.print(f"\n🗑️  Removing {model.display_name}...")
+                    manager.remove_model(model.name)
+                    console.print(f"✅ Successfully removed {model.display_name}")
+                    success_count += 1
+                    
+                except Exception as e:
+                    console.print(f"[red]❌ Failed to remove {model.display_name}: {e}[/red]")
+                    
+                    # Ask if user wants to continue
+                    if len(selected_models) > 1 and not force:
+                        if not Confirm.ask("Continue with remaining models?", default=True):
+                            break
+            
+            # Summary
+            console.print(f"\n🎉 Removal complete!")
+            console.print(f"✅ Successfully removed: {success_count}/{len(selected_models)} models")
+            
+            if success_count > 0:
+                freed_space = sum(model.size_bytes for model in selected_models[:success_count])
+                console.print(f"💾 Total space freed: {format_size(freed_space)}")
+                
+                # Refresh model info after removals
+                manager.refresh()
+            
+            console.print("\n[dim]💡 The selected models have been permanently deleted.[/dim]")
             return
 
         # Handle bring-back flag

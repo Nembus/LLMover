@@ -518,6 +518,72 @@ class ModelManager:
         except Exception as e:
             raise RuntimeError(f"Failed to restore model from USB: {e}")
     
+    def remove_model(self, model_name: str) -> bool:
+        """Permanently remove/delete a model from storage."""
+        model = self.get_model_by_name(model_name)
+        if not model:
+            raise ValueError(f"Model '{model_name}' not found")
+        
+        print(f"Removing {model.name}...")
+        
+        try:
+            if model.is_symlink:
+                # Model is a symlink - remove both the symlink and the target on USB
+                print(f"Removing symlinked model (local symlink + USB target)...")
+                
+                # Remove the target on USB first
+                if model.linked_to and model.linked_to.exists():
+                    if model.linked_to.is_dir():
+                        shutil.rmtree(model.linked_to)
+                    else:
+                        model.linked_to.unlink()
+                    print(f"Removed USB target: {model.linked_to}")
+                
+                # Remove the local symlink
+                if model.path.is_symlink():
+                    model.path.unlink()
+                    print(f"Removed local symlink: {model.path}")
+                
+            elif model.has_internal_symlinks:
+                # Model has internal file symlinks - remove local structure and USB target
+                print(f"Removing model with internal symlinks (local structure + USB files)...")
+                
+                # Remove the USB target directory
+                if model.internal_symlink_target and model.internal_symlink_target.exists():
+                    if model.internal_symlink_target.is_dir():
+                        shutil.rmtree(model.internal_symlink_target)
+                    else:
+                        model.internal_symlink_target.unlink()
+                    print(f"Removed USB target: {model.internal_symlink_target}")
+                
+                # Remove the local directory structure (contains symlinks)
+                if model.path.exists():
+                    if model.path.is_dir():
+                        shutil.rmtree(model.path)
+                    else:
+                        model.path.unlink()
+                    print(f"Removed local structure: {model.path}")
+                
+            else:
+                # Model is purely local - remove it directly
+                print(f"Removing local model...")
+                
+                if model.path.exists():
+                    if model.path.is_dir():
+                        shutil.rmtree(model.path)
+                    else:
+                        model.path.unlink()
+                    print(f"Removed local model: {model.path}")
+            
+            # Remove from internal model tracking
+            if model_name in self._models:
+                del self._models[model_name]
+            
+            return True
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to remove model '{model_name}': {e}")
+    
     def get_usb_space_info(self) -> Dict[str, int]:
         """Get USB storage space information."""
         if not self.usb_available:
