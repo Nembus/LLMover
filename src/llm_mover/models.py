@@ -215,22 +215,31 @@ class ModelManager:
             
             symlink_files = []
             usb_targets = []
+            total_size = 0
+            symlinked_size = 0
             
             for file_path in files:
-                if file_path.is_file() and file_path.is_symlink():
+                if file_path.is_file():
                     try:
-                        target = file_path.resolve()
-                        # Check if target is on USB by seeing if it's under USB path
-                        if str(target).startswith(str(self.usb_path)):
-                            symlink_files.append(file_path)
-                            usb_targets.append(target.parent)
+                        file_size = file_path.stat().st_size
+                        total_size += file_size
+                        
+                        if file_path.is_symlink():
+                            target = file_path.resolve()
+                            # Check if target is on USB by seeing if it's under USB path
+                            if str(target).startswith(str(self.usb_path)):
+                                symlink_files.append(file_path)
+                                usb_targets.append(target.parent)
+                                symlinked_size += file_size
                     except (OSError, RuntimeError):
-                        # Broken symlink, ignore
+                        # Broken symlink or inaccessible file, ignore
                         continue
             
-            # Consider it "on USB" if majority of files are symlinked to USB
-            symlink_ratio = len(symlink_files) / file_count if file_count > 0 else 0
-            has_usb_symlinks = symlink_ratio > 0.5  # More than 50% of files are on USB
+            # Consider it "on USB" if majority of data (by size) is symlinked to USB
+            # OR if majority of files are symlinked (fallback for edge cases)
+            size_ratio = symlinked_size / total_size if total_size > 0 else 0
+            file_ratio = len(symlink_files) / file_count if file_count > 0 else 0
+            has_usb_symlinks = size_ratio > 0.5 or file_ratio > 0.5
             
             # Find common USB target directory
             common_target = None

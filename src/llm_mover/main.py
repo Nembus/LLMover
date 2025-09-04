@@ -74,7 +74,7 @@ def display_model_table(models: List[ModelInfo], title: str) -> None:
         if "USB" in title or "External" in title:
             status = "💽 On USB"
         else:
-            status = "📎 On USB" if model.is_symlink else "💾 Local"
+            status = "📎 On USB" if (model.is_symlink or model.has_internal_symlinks) else "💾 Local"
             
         type_icon = {
             "single_file": "📄",
