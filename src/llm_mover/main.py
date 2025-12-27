@@ -386,8 +386,9 @@ def select_models_to_link(models: List[ModelInfo]) -> List[ModelInfo]:
 @click.option('--force', '-f', is_flag=True, help='Skip confirmation prompts (use with caution)')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
 @click.option('--link-external', '-le', is_flag=True, help='Link USB models to local directory for LM Studio')
+@click.option('--unlink-external', '-ue', is_flag=True, help='Remove symlinks for USB models (keeps USB files)')
 @click.option('--path', '-p', default=None, help='Specific USB model path to link (use with -le)')
-def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, check_health: bool, repair: bool, bring_back: bool, remove: bool, force: bool, verbose: bool, link_external: bool, path: str):
+def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, check_health: bool, repair: bool, bring_back: bool, remove: bool, force: bool, verbose: bool, link_external: bool, unlink_external: bool, path: str):
     """LLM Model Mover - Move models from local storage to USB stick with symlink creation."""
     
     # Initialize configuration manager
@@ -669,6 +670,91 @@ def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, c
             console.print(f"\n🎉 Linking complete!")
             console.print(f"✅ Successfully linked: {success_count}/{len(selected_models)} models")
             console.print("\n[dim]💡 These models are now visible in LM Studio[/dim]")
+            return
+
+        # Handle unlink-external flag
+        if unlink_external:
+            if verbose:
+                console.print(f"\n[dim]Local path: {manager.local_path}[/dim]")
+
+            # Get externally-linked models (symlinks to USB)
+            linked_models = manager.get_linked_external_models()
+
+            if not linked_models:
+                console.print("\n[yellow]📭 No externally-linked USB models found.[/yellow]")
+                console.print("[dim]💡 Use --link-external to link USB models first[/dim]")
+                return
+
+            console.print(f"\n🔗 Found {len(linked_models)} externally-linked model(s)")
+            console.print("[dim]These are symlinks pointing to USB - unlinking removes the symlink but keeps USB files[/dim]")
+
+            # Display linked models
+            display_model_table(linked_models, "Externally-Linked USB Models")
+
+            # Let user select models to unlink
+            console.print("\n🔓 Select models to unlink:")
+            console.print("Enter model IDs separated by commas, ranges (e.g., 1-3), or 'all'")
+
+            while True:
+                try:
+                    selection = console.input("\n[bold yellow]Select models to unlink[/bold yellow]: ").strip()
+
+                    if not selection:
+                        console.print("[yellow]No models selected. Exiting.[/yellow]")
+                        return
+
+                    if selection.lower() == 'all':
+                        selected_models = linked_models
+                        break
+
+                    selected_indices = set()
+                    for part in selection.split(','):
+                        part = part.strip()
+                        if '-' in part and part.count('-') == 1:
+                            start, end = map(int, part.split('-'))
+                            selected_indices.update(range(start, end + 1))
+                        else:
+                            selected_indices.add(int(part))
+
+                    valid_indices = {i for i in selected_indices if 1 <= i <= len(linked_models)}
+                    if not valid_indices:
+                        console.print("[yellow]No valid selection. Exiting.[/yellow]")
+                        return
+
+                    selected_models = [linked_models[i - 1] for i in sorted(valid_indices)]
+                    break
+
+                except (ValueError, IndexError):
+                    console.print("[red]Invalid input. Please try again.[/red]")
+                except KeyboardInterrupt:
+                    console.print("\n[yellow]Selection cancelled.[/yellow]")
+                    return
+
+            # Show what will be unlinked
+            console.print(f"\n🔓 About to unlink {len(selected_models)} model(s):")
+            for model in selected_models:
+                console.print(f"  • {model.display_name}")
+            console.print("\n[dim]USB files will NOT be deleted - only local symlinks removed[/dim]")
+
+            if not Confirm.ask("\nProceed with unlinking?", default=True):
+                console.print("[yellow]Operation cancelled.[/yellow]")
+                return
+
+            # Unlink models
+            console.print("\n🔓 Removing symlinks...")
+
+            success_count = 0
+            for model in track(selected_models, description="Unlinking models..."):
+                try:
+                    manager.unlink_external_model(model.name)
+                    console.print(f"[green]✅ Unlinked: {model.display_name}[/green]")
+                    success_count += 1
+                except Exception as e:
+                    console.print(f"[red]❌ Failed to unlink {model.display_name}: {e}[/red]")
+
+            console.print(f"\n🎉 Unlinking complete!")
+            console.print(f"✅ Successfully unlinked: {success_count}/{len(selected_models)} models")
+            console.print("\n[dim]💡 These models are no longer visible in LM Studio (USB files preserved)[/dim]")
             return
 
         # Handle bring-back flag

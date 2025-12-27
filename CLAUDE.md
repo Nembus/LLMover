@@ -35,6 +35,7 @@
 - Model restoration (`--bring-back`) from USB to local storage
 - Model removal (`--remove`) with multiple safety confirmations and force override (`--force`)
 - External model linking (`--link-external`) to link USB models without moving them first
+- External model unlinking (`--unlink-external`) to remove symlinks without deleting USB files
 
 #### 3. Safety & Utilities (`utils.py`)
 - **safe_move_with_verification()**: Atomic file operations with rollback
@@ -166,7 +167,15 @@ uv run llm-mover -le --path /path/to/usb/model  # specific path mode
 - Specific path mode links a single model directly
 - Auto-detects publisher from directory structure or prompts for it
 
-#### 7. Model Removal
+#### 7. Unlink External USB Models
+```bash
+uv run llm-mover --unlink-external     # or -ue
+```
+- Remove symlinks for externally-linked models (inverse of link)
+- Keeps USB files intact - only removes local symlinks
+- Use for unsupported models or temporary cleanup
+
+#### 8. Model Removal
 ```bash
 uv run llm-mover --remove       # or -rm (short flag)
 uv run llm-mover --remove --force # Skip confirmation prompts
@@ -294,23 +303,25 @@ uv run llm-mover --check-health     # Check symlink and model health
 uv run llm-mover --repair           # Repair broken symlinks
 uv run llm-mover --show-external    # View models currently on USB
 uv run llm-mover --link-external    # Link unlinked USB models to LM Studio
+uv run llm-mover --unlink-external  # Remove symlinks (keep USB files)
 ls -la ~/.lmstudio/models/          # Manual directory inspection
 df -h /Volumes/USBSTICK/            # Check USB space manually
 ```
 
 ### Recent Updates (Updated: December 27, 2025)
 
-#### External Model Linking Feature (Latest)
-- **Major Feature**: Link models already on USB to LM Studio without moving them first
-- **CLI Integration**: New `--link-external` (`-le`) flag with optional `--path` (`-p`) argument
-- **Two Modes**:
-  - Scan mode: Scans USB for unlinked models, interactive selection
-  - Specific path: Link a single model by providing its USB path
-- **Publisher Handling**: Auto-detects publisher from `publisher/model-name` structure
-- **Flat Model Support**: Prompts for publisher name or uses "external" as default
-- **Smart Detection**: Compares USB models against existing local symlinks to find unlinked models
+#### External Model Linking & Unlinking Features (Latest)
+- **Link Feature**: Link models already on USB to LM Studio without moving them first
+  - CLI: `--link-external` (`-le`) with optional `--path` (`-p`) argument
+  - Scan mode or specific path mode
+  - Auto-detects publisher or prompts for flat models
+- **Unlink Feature**: Remove symlinks without deleting USB files (inverse of link)
+  - CLI: `--unlink-external` (`-ue`)
+  - Shows externally-linked models for selection
+  - Removes local symlinks only, preserves USB files
+  - Use case: Remove unsupported models like MiniMax-M2.1 from LM Studio
+- **Smart Detection**: Compares USB models against existing local symlinks
 - **Safety Features**: Validates paths, checks for existing symlinks, cleanup on failure
-- **Use Cases**: Models downloaded directly to USB, manually copied, or received from others
 
 #### Model Removal Feature (Previous)
 - **Major Feature**: Added permanent model deletion capability with comprehensive safety measures

@@ -914,6 +914,74 @@ class ModelManager:
                 pass
             raise RuntimeError(f"Failed to link external model: {e}")
 
+    def get_linked_external_models(self) -> List[ModelInfo]:
+        """Get models that are symlinks pointing to USB (externally linked).
+
+        Returns models that were linked via --link-external, which are
+        directory-level symlinks pointing to the USB path.
+
+        Returns:
+            List of ModelInfo for externally-linked models
+        """
+        linked = []
+        for model in self._models.values():
+            # Check if it's a directory-level symlink pointing to USB
+            if model.is_symlink and model.linked_to:
+                try:
+                    # Verify the target is under the USB path
+                    model.linked_to.relative_to(self.usb_path)
+                    linked.append(model)
+                except ValueError:
+                    # Target is not under USB path, skip
+                    pass
+        return linked
+
+    def unlink_external_model(self, model_name: str) -> bool:
+        """Remove a symlink for an externally-linked USB model.
+
+        This removes the local symlink but keeps the files on USB intact.
+        It's the inverse of link_external_model().
+
+        Args:
+            model_name: Name of the model to unlink
+
+        Returns:
+            bool: True if successful
+
+        Raises:
+            ValueError: If model doesn't exist or isn't an external symlink
+        """
+        model = self._models.get(model_name)
+        if not model:
+            raise ValueError(f"Model not found: {model_name}")
+
+        # Verify it's an externally-linked model (symlink to USB)
+        if not model.is_symlink or not model.linked_to:
+            raise ValueError(f"Model is not an external symlink: {model_name}")
+
+        try:
+            model.linked_to.relative_to(self.usb_path)
+        except ValueError:
+            raise ValueError(f"Model symlink doesn't point to USB: {model_name}")
+
+        try:
+            # Remove the local symlink only
+            if model.path.is_symlink():
+                model.path.unlink()
+
+            # Remove empty publisher directory if applicable
+            publisher_dir = model.path.parent
+            if publisher_dir.exists() and not any(publisher_dir.iterdir()):
+                publisher_dir.rmdir()
+
+            # Remove from tracking
+            del self._models[model_name]
+
+            return True
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to unlink model: {e}")
+
     def check_health(self) -> Dict[str, List[str]]:
         """Check health of all models and return issues found."""
         issues = {

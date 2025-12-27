@@ -179,6 +179,27 @@ uv run llm-mover -le -p /Volumes/USBSTICK/LMModels/mlx-community/MiniMax-M2.1-ML
 - Models following `publisher/model-name` structure: publisher auto-detected
 - Flat models without publisher directory: prompts for publisher name (default: "external")
 
+### Unlink External USB Models
+```bash
+# Remove symlinks for externally-linked models (keeps USB files)
+uv run llm-mover --unlink-external
+# Or using short flag
+uv run llm-mover -ue
+```
+
+**What happens:**
+- Shows models that were linked via `--link-external`
+- Lets you select which models to unlink
+- Removes local symlinks only
+- USB files remain untouched
+
+**When to use:**
+- Remove unsupported models from LM Studio (like MiniMax-M2.1)
+- Temporarily hide models without affecting USB storage
+- Clean up linked models you no longer need visible
+
+**This is the inverse of `--link-external`** - use it to undo linking without deleting files.
+
 ### Remove Models Permanently
 ```bash
 # Remove/delete models permanently to free up space
@@ -258,6 +279,7 @@ The tool automatically categorizes your models:
 | `--repair` | `-r` | Automatically repair broken symlinks |
 | `--bring-back` | `-bb` | Move models from USB back to local storage |
 | `--link-external` | `-le` | Link USB models to local directory for LM Studio |
+| `--unlink-external` | `-ue` | Remove symlinks for USB models (keeps USB files) |
 | `--path PATH` | `-p` | Specific USB model path to link (use with -le) |
 | `--remove` | `-rm` | Remove/delete models permanently |
 | `--force` | `-f` | Skip confirmation prompts (use with caution) |
@@ -284,6 +306,10 @@ uv run llm-mover -bb
 uv run llm-mover --link-external
 uv run llm-mover -le
 uv run llm-mover -le --path /Volumes/USBSTICK/LMModels/publisher/model-name
+
+# Unlink external models (keeps USB files)
+uv run llm-mover --unlink-external
+uv run llm-mover -ue
 
 # Remove models permanently (with confirmation)
 uv run llm-mover --remove
