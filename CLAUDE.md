@@ -34,6 +34,7 @@
 - External model viewing (`--show-external`) functionality
 - Model restoration (`--bring-back`) from USB to local storage
 - Model removal (`--remove`) with multiple safety confirmations and force override (`--force`)
+- External model linking (`--link-external`) to link USB models without moving them first
 
 #### 3. Safety & Utilities (`utils.py`)
 - **safe_move_with_verification()**: Atomic file operations with rollback
@@ -155,7 +156,17 @@ uv run llm-mover --bring-back   # or -bb (short flag)
 - Useful when USB transfer speeds are too slow for regular use
 - Reverses the symlink process safely
 
-#### 6. Model Removal (New)
+#### 6. Link External USB Models
+```bash
+uv run llm-mover --link-external       # or -le (scan mode)
+uv run llm-mover -le --path /path/to/usb/model  # specific path mode
+```
+- Link models already on USB to LM Studio without moving them
+- Scan mode shows unlinked USB models for interactive selection
+- Specific path mode links a single model directly
+- Auto-detects publisher from directory structure or prompts for it
+
+#### 7. Model Removal
 ```bash
 uv run llm-mover --remove       # or -rm (short flag)
 uv run llm-mover --remove --force # Skip confirmation prompts
@@ -282,13 +293,26 @@ uv run llm-mover --list-only -v     # Verbose scanning only
 uv run llm-mover --check-health     # Check symlink and model health
 uv run llm-mover --repair           # Repair broken symlinks
 uv run llm-mover --show-external    # View models currently on USB
+uv run llm-mover --link-external    # Link unlinked USB models to LM Studio
 ls -la ~/.lmstudio/models/          # Manual directory inspection
 df -h /Volumes/USBSTICK/            # Check USB space manually
 ```
 
-### Recent Updates (Updated: August 31, 2025)
+### Recent Updates (Updated: December 27, 2025)
 
-#### Model Removal Feature (Latest)
+#### External Model Linking Feature (Latest)
+- **Major Feature**: Link models already on USB to LM Studio without moving them first
+- **CLI Integration**: New `--link-external` (`-le`) flag with optional `--path` (`-p`) argument
+- **Two Modes**:
+  - Scan mode: Scans USB for unlinked models, interactive selection
+  - Specific path: Link a single model by providing its USB path
+- **Publisher Handling**: Auto-detects publisher from `publisher/model-name` structure
+- **Flat Model Support**: Prompts for publisher name or uses "external" as default
+- **Smart Detection**: Compares USB models against existing local symlinks to find unlinked models
+- **Safety Features**: Validates paths, checks for existing symlinks, cleanup on failure
+- **Use Cases**: Models downloaded directly to USB, manually copied, or received from others
+
+#### Model Removal Feature (Previous)
 - **Major Feature**: Added permanent model deletion capability with comprehensive safety measures
 - **CLI Integration**: New `--remove` (`-rm`) flag with interactive model selection
 - **Safety Confirmations**: Multiple confirmation layers prevent accidental deletion

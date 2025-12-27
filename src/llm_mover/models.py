@@ -750,7 +750,170 @@ class ModelManager:
                     print(f"⚠️  Skipping {publisher_dir.name}: {e}")
         
         return usb_models
-    
+
+    def get_unlinked_usb_models(self) -> List[ModelInfo]:
+        """Get USB models that don't have symlinks in local directory.
+
+        Compares USB models against existing local symlinks to find models
+        that haven't been linked yet.
+
+        Returns:
+            List of ModelInfo for USB models without local symlinks
+        """
+        if not self.usb_available:
+            return []
+
+        # Get all USB models
+        usb_models = self.scan_usb_models()
+
+        # Collect all local symlink targets pointing to USB
+        linked_usb_paths = set()
+        for model in self._models.values():
+            if model.is_symlink and model.linked_to:
+                linked_usb_paths.add(model.linked_to.resolve())
+            elif model.has_internal_symlinks and model.internal_symlink_target:
+                linked_usb_paths.add(model.internal_symlink_target.resolve())
+
+        # Filter out already-linked models
+        unlinked = []
+        for usb_model in usb_models:
+            usb_path_resolved = usb_model.path.resolve()
+            if usb_path_resolved not in linked_usb_paths:
+                unlinked.append(usb_model)
+
+        return unlinked
+
+    def validate_external_path(self, path_str: str) -> tuple:
+        """Validate an external path and check if it's under the USB directory.
+
+        Args:
+            path_str: Path string to validate
+
+        Returns:
+            Tuple of (resolved_path: Path, is_under_usb: bool)
+
+        Raises:
+            ValueError: If path doesn't exist
+        """
+        path = Path(path_str).expanduser().resolve()
+
+        if not path.exists():
+            raise ValueError(f"Path doesn't exist: {path}")
+
+        # Check if path is under USB directory
+        try:
+            path.relative_to(self.usb_path)
+            is_under_usb = True
+        except ValueError:
+            is_under_usb = False
+
+        return path, is_under_usb
+
+    def link_external_model(self, usb_model_path: Path, publisher: str = None) -> bool:
+        """Create a symlink in local directory pointing to a USB model.
+
+        This enables LM Studio to see models that are stored on USB without
+        having to move them first.
+
+        Args:
+            usb_model_path: Path to the model on USB
+            publisher: Publisher name (optional - will be inferred or use 'external')
+
+        Returns:
+            bool: True if successful
+
+        Raises:
+            ValueError: If path doesn't exist or model already linked
+            FileExistsError: If file/symlink already exists at target
+            RuntimeError: If symlink creation fails
+        """
+        resolved_path = usb_model_path.resolve()
+
+        # Validate USB model exists
+        if not resolved_path.exists():
+            raise ValueError(f"USB model path doesn't exist: {resolved_path}")
+
+        # Determine publisher and model name
+        try:
+            relative_to_usb = resolved_path.relative_to(self.usb_path)
+            parts = relative_to_usb.parts
+
+            if len(parts) >= 2:
+                # Standard structure: publisher/model_name
+                inferred_publisher = parts[0]
+                model_name = parts[1]
+            else:
+                # Flat structure - use provided publisher or default
+                inferred_publisher = publisher or "external"
+                model_name = resolved_path.name
+        except ValueError:
+            # Path is outside USB directory
+            inferred_publisher = publisher or "external"
+            model_name = resolved_path.name
+
+        # Use explicit publisher if provided, otherwise use inferred
+        final_publisher = publisher or inferred_publisher
+
+        # Create local path structure
+        local_publisher_dir = self.local_path / final_publisher
+        local_model_path = local_publisher_dir / model_name
+
+        # Check if symlink already exists
+        if local_model_path.exists():
+            if local_model_path.is_symlink():
+                existing_target = local_model_path.resolve()
+                if existing_target == resolved_path:
+                    raise ValueError(f"Model already linked: {local_model_path}")
+                else:
+                    raise FileExistsError(
+                        f"Different symlink exists at: {local_model_path} "
+                        f"(points to {existing_target})"
+                    )
+            else:
+                raise FileExistsError(f"File or directory already exists at: {local_model_path}")
+
+        try:
+            # Create publisher directory if needed
+            local_publisher_dir.mkdir(exist_ok=True)
+
+            # Create symlink
+            local_model_path.symlink_to(resolved_path)
+
+            # Verify symlink health
+            health = check_symlink_health(local_model_path)
+            if health['is_broken']:
+                raise RuntimeError("Created symlink is broken")
+
+            # Calculate size
+            size = self._calculate_size(local_model_path)
+
+            # Create and add ModelInfo to internal tracking
+            unique_name = f"{final_publisher}/{model_name}"
+            model_info = ModelInfo(
+                name=unique_name,
+                path=local_model_path,
+                size_bytes=size,
+                publisher=final_publisher,
+                model_name=model_name,
+                is_symlink=True,
+                linked_to=resolved_path
+            )
+            self._models[unique_name] = model_info
+
+            return True
+
+        except Exception as e:
+            # Cleanup on failure
+            try:
+                if local_model_path.is_symlink():
+                    local_model_path.unlink()
+                # Remove publisher dir if empty and we might have created it
+                if local_publisher_dir.exists() and not any(local_publisher_dir.iterdir()):
+                    local_publisher_dir.rmdir()
+            except Exception:
+                pass
+            raise RuntimeError(f"Failed to link external model: {e}")
+
     def check_health(self) -> Dict[str, List[str]]:
         """Check health of all models and return issues found."""
         issues = {

@@ -151,6 +151,34 @@ uv run llm-mover -bb
 - USB transfer speeds are too slow for regular use
 - Preparing to remove or reformat the USB drive
 
+### Link External USB Models
+```bash
+# Scan USB for unlinked models and select which to link
+uv run llm-mover --link-external
+# Or using short flag
+uv run llm-mover -le
+
+# Link a specific model by path
+uv run llm-mover --link-external --path /Volumes/USBSTICK/LMModels/mlx-community/MiniMax-M2.1-MLX
+uv run llm-mover -le -p /Volumes/USBSTICK/LMModels/mlx-community/MiniMax-M2.1-MLX
+```
+
+**What happens:**
+- Scans USB for models that don't have local symlinks
+- Lets you select which models to link
+- Creates symlinks in local LM Studio directory pointing to USB
+- Models become immediately visible in LM Studio
+
+**When to use:**
+- Downloaded a model directly to USB to save local space
+- Copied models to USB manually and want LM Studio to see them
+- Received models on USB from someone else
+- Want to organize models across multiple USB drives
+
+**Publisher handling:**
+- Models following `publisher/model-name` structure: publisher auto-detected
+- Flat models without publisher directory: prompts for publisher name (default: "external")
+
 ### Remove Models Permanently
 ```bash
 # Remove/delete models permanently to free up space
@@ -229,6 +257,8 @@ The tool automatically categorizes your models:
 | `--check-health` | `-ch` | Check health of symlinks and models |
 | `--repair` | `-r` | Automatically repair broken symlinks |
 | `--bring-back` | `-bb` | Move models from USB back to local storage |
+| `--link-external` | `-le` | Link USB models to local directory for LM Studio |
+| `--path PATH` | `-p` | Specific USB model path to link (use with -le) |
 | `--remove` | `-rm` | Remove/delete models permanently |
 | `--force` | `-f` | Skip confirmation prompts (use with caution) |
 | `--verbose` | `-v` | Show detailed information during operations |
@@ -249,6 +279,11 @@ uv run llm-mover --repair
 # Bring models back from USB to local storage
 uv run llm-mover --bring-back
 uv run llm-mover -bb
+
+# Link external USB models to LM Studio
+uv run llm-mover --link-external
+uv run llm-mover -le
+uv run llm-mover -le --path /Volumes/USBSTICK/LMModels/publisher/model-name
 
 # Remove models permanently (with confirmation)
 uv run llm-mover --remove
@@ -333,8 +368,11 @@ A: Yes! Use `uv run llm-mover --bring-back` to interactively select and move mod
 **Q: How much space will I save?**  
 A: It depends on your models! You could save hundreds of GB. Run `uv run llm-mover --list-only` to see potential savings.
 
-**Q: Is this reversible?**  
+**Q: Is this reversible?**
 A: Yes! The file operations are completely reversible. Use `uv run llm-mover --bring-back` to automatically move models back to local storage and clean up symlinks.
+
+**Q: Can I download models directly to USB and have LM Studio see them?**
+A: Yes! Use `uv run llm-mover --link-external` to scan your USB for models and create symlinks so LM Studio can access them. This is perfect for models you downloaded elsewhere or received on USB.
 
 ## 🔧 Technical Details
 

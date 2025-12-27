@@ -8,7 +8,7 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import track
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
 
@@ -304,6 +304,68 @@ def select_models_to_remove(models: List[ModelInfo]) -> List[ModelInfo]:
             return []
 
 
+def select_models_to_link(models: List[ModelInfo]) -> List[ModelInfo]:
+    """Allow user to select which USB models to link to local directory."""
+    if not models:
+        return []
+
+    console.print("\n🔗 Select USB models to link to local directory:")
+    console.print("Enter model IDs separated by commas, ranges (e.g., 1-3), or 'all'")
+    console.print("Example: 1,3,5-7 or all")
+    console.print("[dim]This will create symlinks so LM Studio can see these models[/dim]")
+
+    display_model_table(models, "Unlinked USB Models")
+
+    while True:
+        try:
+            selection = console.input("\n[bold cyan]Select models to link[/bold cyan]: ").strip()
+
+            if not selection:
+                return []
+
+            if selection.lower() == 'all':
+                return models
+
+            selected_indices = set()
+
+            for part in selection.split(','):
+                part = part.strip()
+
+                if '-' in part and part.count('-') == 1:
+                    # Range selection
+                    start, end = map(int, part.split('-'))
+                    selected_indices.update(range(start, end + 1))
+                else:
+                    # Single selection
+                    selected_indices.add(int(part))
+
+            # Validate indices
+            valid_indices = {i for i in selected_indices if 1 <= i <= len(models)}
+            invalid_indices = selected_indices - valid_indices
+
+            if invalid_indices:
+                console.print(f"[red]Invalid selection(s): {sorted(invalid_indices)}[/red]")
+                continue
+
+            if not valid_indices:
+                return []
+
+            selected_models = [models[i - 1] for i in sorted(valid_indices)]
+
+            # Show selection summary
+            total_size = sum(model.size_bytes for model in selected_models)
+            console.print(f"\n[cyan]Selected {len(selected_models)} model(s) to link[/cyan]")
+            console.print(f"[dim]Total size: {format_size(total_size)}[/dim]")
+
+            return selected_models
+
+        except (ValueError, IndexError):
+            console.print("[red]Invalid input. Please try again.[/red]")
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Selection cancelled.[/yellow]")
+            return []
+
+
 @click.command()
 @click.option(
     '--local-path', '-l',
@@ -323,7 +385,9 @@ def select_models_to_remove(models: List[ModelInfo]) -> List[ModelInfo]:
 @click.option('--remove', '-rm', is_flag=True, help='Remove/delete models permanently')
 @click.option('--force', '-f', is_flag=True, help='Skip confirmation prompts (use with caution)')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, check_health: bool, repair: bool, bring_back: bool, remove: bool, force: bool, verbose: bool):
+@click.option('--link-external', '-le', is_flag=True, help='Link USB models to local directory for LM Studio')
+@click.option('--path', '-p', default=None, help='Specific USB model path to link (use with -le)')
+def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, check_health: bool, repair: bool, bring_back: bool, remove: bool, force: bool, verbose: bool, link_external: bool, path: str):
     """LLM Model Mover - Move models from local storage to USB stick with symlink creation."""
     
     # Initialize configuration manager
@@ -489,6 +553,122 @@ def main(local_path: str, usb_path: str, list_only: bool, show_external: bool, c
                 manager.refresh()
             
             console.print("\n[dim]💡 The selected models have been permanently deleted.[/dim]")
+            return
+
+        # Handle link-external flag
+        if link_external:
+            if verbose:
+                console.print(f"\n[dim]USB path: {manager.usb_path}[/dim]")
+                console.print(f"[dim]Local path: {manager.local_path}[/dim]")
+
+            if not manager.usb_available:
+                display_usb_error(manager)
+                return
+
+            # Specific path mode
+            if path:
+                console.print(f"\n🔗 Linking specific USB model...")
+                try:
+                    usb_path_resolved, is_under_usb = manager.validate_external_path(path)
+
+                    if not is_under_usb:
+                        console.print(f"[yellow]⚠️  Path is not under configured USB directory[/yellow]")
+                        console.print(f"[dim]Configured USB path: {manager.usb_path}[/dim]")
+                        if not Confirm.ask("Continue anyway?", default=False):
+                            console.print("[yellow]Operation cancelled.[/yellow]")
+                            return
+
+                    # Check if model follows publisher/model structure
+                    publisher = None
+                    try:
+                        rel_path = usb_path_resolved.relative_to(manager.usb_path)
+                        if len(rel_path.parts) < 2:
+                            # Flat structure - prompt for publisher
+                            console.print(f"\n[yellow]Model '{usb_path_resolved.name}' has no publisher directory[/yellow]")
+                            publisher = Prompt.ask(
+                                "Enter publisher name for this model",
+                                default="external"
+                            )
+                    except ValueError:
+                        # Path outside USB directory
+                        publisher = Prompt.ask(
+                            "Enter publisher name for this model",
+                            default="external"
+                        )
+
+                    # Link the model
+                    manager.link_external_model(usb_path_resolved, publisher)
+                    console.print(f"[green]✅ Successfully linked: {usb_path_resolved.name}[/green]")
+                    console.print(f"[dim]Symlink created in local models directory[/dim]")
+                    console.print("\n[dim]💡 This model is now visible in LM Studio[/dim]")
+
+                except ValueError as e:
+                    console.print(f"[red]❌ {e}[/red]")
+                except FileExistsError as e:
+                    console.print(f"[red]❌ {e}[/red]")
+                except Exception as e:
+                    console.print(f"[red]❌ Failed to link model: {e}[/red]")
+                return
+
+            # Interactive scan mode
+            console.print("\n🔍 Scanning for unlinked USB models...")
+
+            with console.status("[bold green]Scanning...", spinner="dots"):
+                unlinked_models = manager.get_unlinked_usb_models()
+
+            if not unlinked_models:
+                console.print("[green]✅ All USB models are already linked![/green]")
+                console.print("[dim]💡 Use --show-external to see all models on USB[/dim]")
+                return
+
+            console.print(f"\n📦 Found {len(unlinked_models)} unlinked USB model(s)")
+
+            # Let user select models to link
+            selected_models = select_models_to_link(unlinked_models)
+
+            if not selected_models:
+                console.print("[yellow]No models selected. Exiting.[/yellow]")
+                return
+
+            # Check for flat-structure models that need publisher assignment
+            flat_models = [m for m in selected_models if not m.publisher]
+            default_publisher = None
+            if flat_models:
+                console.print("\n[yellow]Some models don't have publisher information:[/yellow]")
+                for model in flat_models:
+                    console.print(f"  • {model.name}")
+
+                default_publisher = Prompt.ask(
+                    "Enter default publisher name for these models",
+                    default="external"
+                )
+
+            # Show what will be linked
+            console.print(f"\n🔗 About to link {len(selected_models)} model(s) to local directory:")
+            for model in selected_models:
+                display_publisher = model.publisher or default_publisher or "external"
+                console.print(f"  • {display_publisher}/{model.model_name}")
+
+            if not Confirm.ask("\nProceed with linking?", default=True):
+                console.print("[yellow]Operation cancelled.[/yellow]")
+                return
+
+            # Link models
+            console.print("\n🔗 Creating symlinks...")
+
+            success_count = 0
+            for model in track(selected_models, description="Linking models..."):
+                try:
+                    publisher = model.publisher if model.publisher else default_publisher
+                    manager.link_external_model(model.path, publisher)
+                    console.print(f"[green]✅ Linked: {model.display_name}[/green]")
+                    success_count += 1
+                except Exception as e:
+                    console.print(f"[red]❌ Failed to link {model.display_name}: {e}[/red]")
+
+            console.print(f"\n🎉 Linking complete!")
+            console.print(f"✅ Successfully linked: {success_count}/{len(selected_models)} models")
+            console.print("\n[dim]💡 These models are now visible in LM Studio[/dim]")
             return
 
         # Handle bring-back flag
